@@ -141,6 +141,73 @@ func unexport(s string) string { return strings.ToLower(s[:1]) + s[1:] }
 // messages, fields, enums, and enum values.
 var deprecationComment = "// Deprecated: Do not use."
 
+func (g *grpc) generateSwitch(file *generator.FileDescriptor, service *pb.ServiceDescriptorProto, index int) {
+	templateBegin := `package pb_gen_switch
+	import (
+		"github.com/golang/protobuf/proto"
+		"my_logic/internal/logic_interface"
+		"my_logic/pb_gen"
+	)
+	
+	func GameMessage(l logic_interface.LogicBase, in *pb_gen.GameRequest) (*pb_gen.GameResponse, error) {
+		response := &pb_gen.GameResponse{}
+	
+		switch in.MsgID {
+
+			`
+	templateEnd := `
+		default:
+			l.Errorf("un supported pt:", in.MsgID)
+	
+		}
+		return response, nil
+	}`
+
+	fmt.Println(templateBegin)
+
+	templateBody := `
+case __PTID__:
+	nowId := pb_gen.__INPUT_TYPE__{}
+	err := nowIn.XXX_Unmarshal(in.Data)
+	if err != nil {
+		l.Errorf("pb_gen.__INPUT_TYPE__ Unmarshal failed: %v", err)
+		return nil, err
+	}
+	var resp *pb_gen.__INPUT_TYPE__
+	var opLog *pb_gen.OpLog
+	//func (l *GameMessageLogic) __METHOD_NAME__(in *pb_gen.__INPUT_TYPE__) (*pb_gen.__OUTPUT_TYPE__, *pb_gen.OpLog, error)
+	resp, opLog, err = l.__METHOD_NAME__(&nowIn)
+	if err != nil {
+		l.Errorf("__METHOD_NAME__ raw failed: %v", err)
+		return nil, err
+	}
+	response.MsgId = __PTID__
+	response.Data, err = proto.Marshal(resp)
+	if err != nil {
+		l.Errorf("__METHOD_NAME__ marshal Response failed: %v", err)
+		return nil, err
+	}
+
+	if opLog != nil{
+		response.OpLog, err = proto.Marshal(opLog)
+		if err != nil {
+			l.Errorf("__METHOD_NAME__ marshal OpLog failed: %v", err)
+			return nil, err
+		}
+	}
+
+	return response, nil	
+	`
+	//fmt.Println(templateBody)
+	for _, method := range service.Method {
+		line := strings.ReplaceAll(templateBody, "__INPUT_TYPE__", *method.InputType)
+		line = strings.ReplaceAll(line, "__OUTPUT_TYPE__", *method.OutputType)
+		line = strings.ReplaceAll(line, "__METHOD_NAME__", *method.Name)
+		fmt.Println(line)
+	}
+	fmt.Println(templateEnd)
+}
+
 // generateService generates all the code for the named service.
 func (g *grpc) generateService(file *generator.FileDescriptor, service *pb.ServiceDescriptorProto, index int) {
 	path := fmt.Sprintf("6,%d", index) // 6 means service.
