@@ -141,10 +141,121 @@ func unexport(s string) string { return strings.ToLower(s[:1]) + s[1:] }
 // messages, fields, enums, and enum values.
 var deprecationComment = "// Deprecated: Do not use."
 
+func (g *grpc) generateSwitch(service *pb.ServiceDescriptorProto) {
+	templateBegin := `
+	/* //for pb_gen_switch.go begin
+	package pb_gen_switch
+	
+	import (
+		"github.com/golang/protobuf/proto"
+		"my_logic/internal/logic_interface"
+		"my_logic/pb_gen"
+	)
+	
+	func GameMessage(l logic_interface.LogicBase, in *pb_gen.GameRequest) (*pb_gen.GameResponse, error) {
+		response := &pb_gen.GameResponse{}
+	
+		switch in.MsgID {
+
+			`
+	templateEnd := `
+		default:
+			l.Errorf("un supported pt:", in.MsgID)
+	
+		}
+		return response, nil
+	}
+	
+	//for pb_gen_switch.go end */`
+
+	templateBody := `
+case __PTID__:
+	nowIn := __INPUT_TYPE__{}
+	err := nowIn.XXX_Unmarshal(in.Data)
+	if err != nil {
+		l.Errorf(".__INPUT_TYPE__ Unmarshal failed: %v", err)
+		return nil, err
+	}
+	var resp *__OUTPUT_TYPE__
+	var opLog *pb_gen.OpLog
+	//func (l *GameMessageLogic) __METHOD_NAME__(in *__INPUT_TYPE__) (*__OUTPUT_TYPE__, *pb_gen.OpLog, error)
+	resp, opLog, err = l.__METHOD_NAME__(&nowIn)
+	if err != nil {
+		l.Errorf("__METHOD_NAME__ raw failed: %v", err)
+		return nil, err
+	}
+	response.MsgId = __PTID__
+	response.Data, err = proto.Marshal(resp)
+	if err != nil {
+		l.Errorf("__METHOD_NAME__ marshal Response failed: %v", err)
+		return nil, err
+	}
+
+	if opLog != nil{
+		response.OpLog, err = proto.Marshal(opLog)
+		if err != nil {
+			l.Errorf("__METHOD_NAME__ marshal OpLog failed: %v", err)
+			return nil, err
+		}
+	}
+
+	return response, nil	
+	`
+	//fmt.Println(templateBody)
+	g.P(templateBegin)
+	for _, method := range service.Method {
+		it := strings.Replace(*method.InputType, ".", "", 1)
+		ot := strings.Replace(*method.OutputType, ".", "", 1)
+		line := strings.ReplaceAll(templateBody, "__INPUT_TYPE__", it)
+		line = strings.ReplaceAll(line, "__OUTPUT_TYPE__", ot)
+		line = strings.ReplaceAll(line, "__METHOD_NAME__", *method.Name)
+		ary := strings.Split(method.Options.String(), ":")
+		//optstr := fmt.Sprintf("%s_%d", method.Options.String(), len(ary))
+		if len(ary) >= 2 {
+			ptid := strings.ReplaceAll(ary[1], " ", "")
+			//ptid = fmt.Sprintf("%s_%s_%s", *method.InputType, *method.OutputType, *method.Name)
+			line = strings.ReplaceAll(line, "__PTID__", ptid)
+		}
+		g.P(line)
+		//fmt.Println(line)
+	}
+	g.P(templateEnd)
+
+	//generate interface api
+	templateInterfaceBegin := `
+	/* //for logic_interface begin
+	package logic_interface
+
+	import (
+		"github.com/tal-tech/go-zero/core/logx"
+		"my_logic/pb_gen"
+	)
+	
+	type LogicBase interface {`
+	templateInterfaceEnd := `logx.Logger
+}
+//for logic_interface end */`
+	templateInterfaceBody := `	__METHOD_NAME__(in *__INPUT_TYPE__) (*__OUTPUT_TYPE__, *pb_gen.OpLog, error)`
+	g.P(templateInterfaceBegin)
+	for _, method := range service.Method {
+		it := strings.Replace(*method.InputType, ".", "", 1)
+		ot := strings.Replace(*method.OutputType, ".", "", 1)
+		line := strings.ReplaceAll(templateInterfaceBody, "__INPUT_TYPE__", it)
+		line = strings.ReplaceAll(line, "__OUTPUT_TYPE__", ot)
+		line = strings.ReplaceAll(line, "__METHOD_NAME__", *method.Name)
+		g.P(line)
+	}
+	g.P(templateInterfaceEnd)
+
+}
+
 // generateService generates all the code for the named service.
 func (g *grpc) generateService(file *generator.FileDescriptor, service *pb.ServiceDescriptorProto, index int) {
 	path := fmt.Sprintf("6,%d", index) // 6 means service.
-
+	if service.GetName() == "LoginPbService" {
+		g.generateSwitch(service)
+		return
+	}
 	origServName := service.GetName()
 	fullServName := origServName
 	if pkg := file.GetPackage(); pkg != "" {
