@@ -249,11 +249,147 @@ case __PTID__:
 
 }
 
+func (g *grpc) generateSwitchV1(service *pb.ServiceDescriptorProto) {
+
+	templateBegin := `/* // for switch_process begin
+	package pb_gen_switch
+
+	import (
+		"github.com/golang/protobuf/proto"
+		"my_logic/internal/logic_interface"
+		"my_logic/pb_gen"
+		"runtime"
+	)
+	
+	func (s *SwitchMgr) StartProceeByIdx(idx int) {
+		var ll logic_interface.LogicBase
+		defer func() {
+			if e := recover(); e != nil {
+				var buf [4096]byte
+				n := runtime.Stack(buf[:], false)
+				ll.Errorf("RECOVER:", e)
+				ll.Errorf("STACK:%d", idx)
+				ll.Errorf(string(buf[:n]))
+				go s.StartProceeByIdx(idx)
+			}
+		}()
+		for {
+			ch := s.chary[idx]
+			select {
+			case sp := <-ch:
+				l := sp.lb
+				ll = l
+				switch sp.in.MsgID {`
+	templateEnd := ` 
+default:
+	// check role token
+	l.Errorf("un supported pt:", sp.in.MsgID)
+}
+}
+}
+}
+
+
+func (s *SwitchMgr) Init() {
+s.chary = make([]chan switchProcess, s.threadNum)
+for i := 0; i < s.threadNum; i++ {
+s.chary[i] = make(chan switchProcess,1024)
+}
+
+for i := 0; i < s.threadNum; i++ {
+go s.StartProceeByIdx(i)
+}
+}
+// for switch_process end */`
+
+	templateBody := `case __PTID__:
+	nowIn := __INPUT_TYPE__{}
+	err := nowIn.XXX_Unmarshal(sp.in.Data)
+	if err != nil {
+		l.Errorf("__INPUT_TYPE__ Unmarshal failed: %v", err)
+		sp.Done(err)
+		continue
+	}
+	var resp *__OUTPUT_TYPE__
+	var opLog *pb_gen.OpLog
+	resp, opLog, err = l.__METHOD_NAME__(&nowIn)
+	if err != nil {
+		l.Errorf("__METHOD_NAME__ raw failed: %v", err)
+		sp.Done(err)
+		continue
+	}
+	sp.out.MsgId = __PTID__
+	sp.out.Data, err = proto.Marshal(resp)
+	if err != nil {
+		l.Errorf("__METHOD_NAME__ marshal Response failed: %v", err)
+		sp.Done(err)
+		continue
+	}
+
+	if opLog != nil {
+		sp.out.OpLog, err = proto.Marshal(opLog)
+		if err != nil {
+			l.Errorf("__METHOD_NAME__ marshal OpLog failed: %v", err)
+			sp.Done(err)
+			continue
+		}
+	}
+	sp.Done(nil)`
+	g.P(templateBegin)
+	for _, method := range service.Method {
+		it := strings.Replace(*method.InputType, ".", "", 1)
+		ot := strings.Replace(*method.OutputType, ".", "", 1)
+		line := strings.ReplaceAll(templateBody, "__INPUT_TYPE__", it)
+		line = strings.ReplaceAll(line, "__OUTPUT_TYPE__", ot)
+		line = strings.ReplaceAll(line, "__METHOD_NAME__", *method.Name)
+		ary := strings.Split(method.Options.String(), ":")
+		//optstr := fmt.Sprintf("%s_%d", method.Options.String(), len(ary))
+		if len(ary) >= 2 {
+			ptid := strings.ReplaceAll(ary[1], " ", "")
+			//ptid = fmt.Sprintf("%s_%s_%s", *method.InputType, *method.OutputType, *method.Name)
+			line = strings.ReplaceAll(line, "__PTID__", ptid)
+		}
+		g.P(line)
+		//fmt.Println(line)
+	}
+	g.P(templateEnd)
+
+	//for interface
+	//generate interface api
+	templateInterfaceBegin := `
+/* //for logic_interface begin
+package logic_interface
+
+import (
+	"context"
+	"github.com/tal-tech/go-zero/core/logx"
+	"my_logic/pb_gen"
+)
+
+type LogicBase interface {`
+	templateInterfaceEnd := `logx.Logger
+}
+//for logic_interface end */`
+	templateInterfaceBody := `	__METHOD_NAME__(in *__INPUT_TYPE__) (*__OUTPUT_TYPE__, *pb_gen.OpLog, error)`
+	g.P(templateInterfaceBegin)
+	for _, method := range service.Method {
+		it := strings.Replace(*method.InputType, ".", "", 1)
+		ot := strings.Replace(*method.OutputType, ".", "", 1)
+		line := strings.ReplaceAll(templateInterfaceBody, "__INPUT_TYPE__", it)
+		line = strings.ReplaceAll(line, "__OUTPUT_TYPE__", ot)
+		line = strings.ReplaceAll(line, "__METHOD_NAME__", *method.Name)
+		g.P(line)
+	}
+	g.P("	GetCtx() context.Context")
+	g.P(templateInterfaceEnd)
+}
+
 // generateService generates all the code for the named service.
 func (g *grpc) generateService(file *generator.FileDescriptor, service *pb.ServiceDescriptorProto, index int) {
 	path := fmt.Sprintf("6,%d", index) // 6 means service.
 	if service.GetName() == "LoginPbService" {
-		g.generateSwitch(service)
+		//g.generateSwitch(service)
+		g.generateSwitchV1(service)
 		return
 	}
 	origServName := service.GetName()
