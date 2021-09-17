@@ -257,7 +257,9 @@ func (g *grpc) generateSwitchV1(service *pb.ServiceDescriptorProto) {
 	import (
 		"github.com/golang/protobuf/proto"
 		"my_logic/internal/logic_interface"
+		"my_logic/internal/utils"
 		"my_logic/pb_gen"
+		"fmt"
 		"runtime"
 	)
 	
@@ -284,6 +286,8 @@ func (g *grpc) generateSwitchV1(service *pb.ServiceDescriptorProto) {
 default:
 	// check role token
 	l.Errorf("un supported pt:", sp.in.MsgID)
+	utils.DoAlarm(fmt.Sprintf("un supported pt:", sp.in.MsgID))
+	sp.Done(fmt.Errorf("un supported pt:", sp.in.MsgID))
 }
 }
 }
