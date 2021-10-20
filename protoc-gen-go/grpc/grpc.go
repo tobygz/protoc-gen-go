@@ -160,7 +160,7 @@ func (g *grpc) generateSwitch(service *pb.ServiceDescriptorProto) {
 			`
 	templateEnd := `
 		default:
-			l.Errorf("un supported pt:", in.MsgID)
+			l.Errorf("un supported pt: %v ", in.MsgID)
 	
 		}
 		return response, nil
@@ -173,7 +173,7 @@ case __PTID__:
 	nowIn := __INPUT_TYPE__{}
 	err := nowIn.XXX_Unmarshal(in.Data)
 	if err != nil {
-		l.Errorf(".__INPUT_TYPE__ Unmarshal failed: %v", err)
+		l.Errorf(".__INPUT_TYPE__ Unmarshal failed: %v roleid: %s accid: %s", err, sp.roleid, sp.accid)
 		return nil, err
 	}
 	var resp *__OUTPUT_TYPE__
@@ -181,20 +181,20 @@ case __PTID__:
 	//func (l *GameMessageLogic) __METHOD_NAME__(in *__INPUT_TYPE__) (*__OUTPUT_TYPE__, *pb_gen.OpLog, error)
 	resp, opLog, err = l.__METHOD_NAME__(&nowIn)
 	if err != nil {
-		l.Errorf("__METHOD_NAME__ raw failed: %v", err)
+		l.Errorf("__METHOD_NAME__ raw failed: %v roleid: %s accid: %s", err, sp.roleid, sp.accid)
 		return nil, err
 	}
 	response.MsgId = __PTID__
 	response.Data, err = proto.Marshal(resp)
 	if err != nil {
-		l.Errorf("__METHOD_NAME__ marshal Response failed: %v", err)
+		l.Errorf("__METHOD_NAME__ marshal Response failed: %v roleid: %s accid: %s", err, sp.roleid, sp.accid)
 		return nil, err
 	}
 
 	if opLog != nil{
 		response.OpLog, err = proto.Marshal(opLog)
 		if err != nil {
-			l.Errorf("__METHOD_NAME__ marshal OpLog failed: %v", err)
+			l.Errorf("__METHOD_NAME__ marshal OpLog failed: %v roleid: %s accid: %s", err, sp.roleid, sp.accid)
 			return nil, err
 		}
 	}
@@ -310,7 +310,7 @@ go s.StartProceeByIdx(i)
 	nowIn := __INPUT_TYPE__{}
 	err := nowIn.XXX_Unmarshal(sp.in.Data)
 	if err != nil {
-		l.Errorf("__INPUT_TYPE__ Unmarshal failed: %v", err)
+		l.Errorf("__INPUT_TYPE__ Unmarshal failed: %v roleid: %s accid: %s", err, sp.roleid, sp.accid)
 		sp.Done(err)
 		continue
 	}
@@ -318,14 +318,14 @@ go s.StartProceeByIdx(i)
 	var opLog *pb_gen.OpLog
 	resp, opLog, err = l.__METHOD_NAME__(&nowIn)
 	if err != nil {
-		l.Errorf("__METHOD_NAME__ raw failed: %v", err)
+		l.Errorf("__METHOD_NAME__ raw failed: %v roleid: %s accid: %s", err, sp.roleid, sp.accid)
 		sp.Done(err)
 		continue
 	}
 	sp.out.MsgId = __PTID__
 	sp.out.Data, err = proto.Marshal(resp)
 	if err != nil {
-		l.Errorf("__METHOD_NAME__ marshal Response failed: %v", err)
+		l.Errorf("__METHOD_NAME__ marshal Response failed: %v roleid: %s accid: %s", err, sp.roleid, sp.accid)
 		sp.Done(err)
 		continue
 	}
@@ -333,7 +333,7 @@ go s.StartProceeByIdx(i)
 	if opLog != nil {
 		sp.out.OpLog, err = proto.Marshal(opLog)
 		if err != nil {
-			l.Errorf("__METHOD_NAME__ marshal OpLog failed: %v", err)
+			l.Errorf("__METHOD_NAME__ marshal OpLog failed: %v roleid: %s accid: %s", err, sp.roleid, sp.accid)
 			sp.Done(err)
 			continue
 		}
