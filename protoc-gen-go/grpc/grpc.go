@@ -144,6 +144,7 @@ var deprecationComment = "// Deprecated: Do not use."
 func (g *grpc) generateSwitch(service *pb.ServiceDescriptorProto) {
 	templateBegin := `
 	/* //for pb_gen_switch.go begin
+	// code was generated from push.proto, please modify push.proto or protoc-gen-go when you want to modify this file.
 	package pb_gen_switch
 	
 	import (
@@ -252,6 +253,7 @@ case __PTID__:
 func (g *grpc) generatePushFuncs(service *pb.ServiceDescriptorProto) {
 
 	templateBegin := `/* //for logic_push begin
+	// code was generated from push.proto, please modify push.proto or protoc-gen-go when you want to modify this file.
 	package svc
 
 	import (
