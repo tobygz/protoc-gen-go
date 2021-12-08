@@ -249,8 +249,54 @@ case __PTID__:
 
 }
 
-func (g *grpc) generateSwitchV1(service *pb.ServiceDescriptorProto) {
+func (g *grpc) generatePushFuncs(service *pb.ServiceDescriptorProto) {
 
+	templateBegin := `/* //for logic_push begin
+	package svc
+
+	import (
+			"fmt"
+			"github.com/golang/protobuf/proto"
+			"my_logic/internal/utils"
+			"my_logic/pb_gen"
+	)
+
+	`
+
+	templateBody := `
+	func (l *ServiceContext) __METHOD_NAME__(roleUID string, msg *__PB_TYPE__) {
+	if msg != nil {
+			bin, err := proto.Marshal(msg)
+			if err != nil {
+					utils.DoAlarm(fmt.Sprintf("ServiceContext __METHOD_NAME__ failed, err: %s roleUID: %s", err.Error(), roleUID) )
+					return
+			}
+			l.SendPlayer(roleUID, uint32(__PTID__), bin)
+			}else{
+			l.SendPlayer(roleUID, uint32(__PTID__), nil)
+			}
+	}       
+	`
+	templateEnd := `
+//for logic_push end */`
+	g.P(templateBegin)
+	for _, method := range service.Method {
+		it := strings.Replace(*method.InputType, ".", "", 1)
+		//ot := strings.Replace(*method.OutputType, ".", "", 1)
+		line := strings.ReplaceAll(templateBody, "__METHOD_NAME__", *method.Name)
+		line = strings.ReplaceAll(line, "__PB_TYPE__", it)
+
+		ary := strings.Split(method.Options.String(), ":")
+		if len(ary) >= 2 {
+			ptid := strings.ReplaceAll(ary[1], " ", "")
+			line = strings.ReplaceAll(line, "__PTID__", ptid)
+		}
+		g.P(line)
+	}
+	g.P(templateEnd)
+}
+
+func (g *grpc) generateSwitchV1(service *pb.ServiceDescriptorProto) {
 	templateBegin := `/* // for switch_process begin
 	package pb_gen_switch
 
@@ -391,6 +437,10 @@ type LogicBase interface {`
 // generateService generates all the code for the named service.
 func (g *grpc) generateService(file *generator.FileDescriptor, service *pb.ServiceDescriptorProto, index int) {
 	path := fmt.Sprintf("6,%d", index) // 6 means service.
+	if service.GetName() == "PushPbService" {
+		g.generatePushFuncs(service)
+		return
+	}
 	if service.GetName() == "LoginPbService" {
 		//g.generateSwitch(service)
 		g.generateSwitchV1(service)
